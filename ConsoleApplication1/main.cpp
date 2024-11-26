@@ -1,9 +1,11 @@
-﻿#include <windows.h>
+﻿#define NOMINMAX
+#include <windows.h>
 #include <iostream>
 #include <sstream>
 #include <iomanip>
 #include <vector>
 #include <fstream>
+#include <cmath>
 
 // 图像宽度和高度
 const int WIDTH = 500;
@@ -30,7 +32,7 @@ struct Image {
 		image = new Color[width * height];
 	}
 	void set(int x, int y, Color color) {
-		image[y * width + x] = color;
+		this->image[y * width + x] = color;
 	}
 };
 
@@ -41,6 +43,9 @@ Image image(WIDTH, HEIGHT);
 struct Triangle {
 	float vertices[3][3]; // 顶点坐标 (x, y, z)
 	float normals[3][3];  // 法向量 (nx, ny, nz)
+};
+struct Triangle_int {
+	int vertices[3][3]; // 顶点坐标 (x, y, z)
 };
 
 
@@ -89,7 +94,7 @@ void DrawImage(HWND hwnd, Image image) {
 	BITMAPINFO bmi = {};
 	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
 	bmi.bmiHeader.biWidth = image.width;
-	bmi.bmiHeader.biHeight = -(int)image.height; // 负值表示位图从上到下绘制
+	bmi.bmiHeader.biHeight = image.height; // 负值表示位图从上到下绘制
 	bmi.bmiHeader.biPlanes = 1;
 	bmi.bmiHeader.biBitCount = 32;
 	bmi.bmiHeader.biCompression = BI_RGB;
@@ -215,6 +220,26 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	}
 	std::vector<Triangle> cc = read3DFile("C:\\Users\\PTA00\\Desktop\\teapot_surface0.norm.txt");
 	std::cout << "三角形数量:" << cc.size() << std::endl;
+
+	int n = 20;
+	float minX = 0, minY = 0, minZ = 0;
+	// 所有向量乘n倍，同时获取最小的x，y，z
+	for (auto& triangle : cc) {
+		for (int i = 0; i < 3; i++) {
+			minX = std::min(minX, triangle.vertices[i][0]);
+			minY = std::min(minY, triangle.vertices[i][1]);
+			minZ = std::min(minZ, triangle.vertices[i][2]);
+		}
+	}
+
+
+	// 将所有顶点的xy连接为线段
+	for (auto& triangle : cc) {
+		// 每个点+10再放大十倍
+		int c = 20;
+		line((triangle.vertices[0][0] + 10) * c, (triangle.vertices[0][1] + 10) * c, (triangle.vertices[1][0] + 10) * c, (triangle.vertices[1][1] + 10) * c, image, { 0, 0, 0, 255 });
+	}
+
 	ShowWindow(hwnd, nCmdShow);
 
 	// 消息循环
