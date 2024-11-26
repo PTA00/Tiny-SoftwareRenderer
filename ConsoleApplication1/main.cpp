@@ -1,5 +1,4 @@
-﻿#define NOMINMAX
-#include <windows.h>
+﻿#include <windows.h>
 #include <iostream>
 #include <sstream>
 #include <iomanip>
@@ -10,7 +9,7 @@
 // 图像宽度和高度
 const int WIDTH = 500;
 const int HEIGHT = 500;
-
+uint32_t 超边界计数 = 0;
 
 struct Color {
 	uint8_t blue;  // 蓝色分量
@@ -32,6 +31,11 @@ struct Image {
 		image = new Color[width * height];
 	}
 	void set(int x, int y, Color color) {
+		// 如果超出边界，则不绘制
+		if (x < 0 || x >= width || y < 0 || y >= height) {
+			超边界计数++;
+			return;
+		}
 		this->image[y * width + x] = color;
 	}
 };
@@ -50,7 +54,7 @@ struct Triangle_int {
 
 
 
-void line(int x0, int y0, int x1, int y1, Image image, Color color) {
+static void line(int x0, int y0, int x1, int y1, Image image, Color color) {
 	bool steep = false;
 	if (std::abs(x0 - x1) < std::abs(y0 - y1)) {
 		std::swap(x0, y0);
@@ -179,6 +183,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
 
 			InvalidateRect(hwnd, nullptr, TRUE); // 请求重绘
 		}
+		else if (wParam == 0x43) {// C键
+			std::cout << "超边界计数:" << 超边界计数 << std::endl;
+			超边界计数 = 0;
+		}
 		return 0;
 
 	case WM_DESTROY:
@@ -197,7 +205,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	freopen_s(&stream, "CON", "w", stdout);//重定向输入流
 
 
-	const wchar_t CLASS_NAME[] = L"测试显示窗口";
+	const wchar_t CLASS_NAME[] = L"test";
 
 	WNDCLASS wc = {};
 	wc.lpfnWndProc = WindowProc;
@@ -222,22 +230,39 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	std::cout << "三角形数量:" << cc.size() << std::endl;
 
 	int n = 20;
-	float minX = 0, minY = 0, minZ = 0;
-	// 所有向量乘n倍，同时获取最小的x，y，z
+	// 将模型向量放大n倍
 	for (auto& triangle : cc) {
 		for (int i = 0; i < 3; i++) {
-			minX = std::min(minX, triangle.vertices[i][0]);
-			minY = std::min(minY, triangle.vertices[i][1]);
-			minZ = std::min(minZ, triangle.vertices[i][2]);
+			triangle.vertices[i][0] *= n;
+			triangle.vertices[i][1] *= n;
+			triangle.vertices[i][2] *= n;
 		}
 	}
-
-
-	// 将所有顶点的xy连接为线段
+	// 遍历获取xyz分别的最大值和最小值
+	float maxX = INT_MIN, minX = INT_MAX;
+	float maxY = INT_MIN, minY = INT_MAX;
+	float maxZ = INT_MIN, minZ = INT_MAX;
 	for (auto& triangle : cc) {
-		// 每个点+10再放大十倍
-		int c = 20;
-		line((triangle.vertices[0][0] + 10) * c, (triangle.vertices[0][1] + 10) * c, (triangle.vertices[1][0] + 10) * c, (triangle.vertices[1][1] + 10) * c, image, { 0, 0, 0, 255 });
+		for (int i = 0; i < 3; i++) {
+			maxX = (std::max)(maxX, triangle.vertices[i][0]);
+			minX = (std::min)(minX, triangle.vertices[i][0]);
+			maxY = (std::max)(maxY, triangle.vertices[i][1]);
+			minY = (std::min)(minY, triangle.vertices[i][1]);
+			maxZ = (std::max)(maxZ, triangle.vertices[i][2]);
+			minZ = (std::min)(minZ, triangle.vertices[i][2]);
+		}
+	}
+	// 偏移=图片中心-最小值-（最大值-最小值）/2
+	float offsetX = image.width / 2 - minX - (maxX - minX) / 2;
+	float offsetY = image.height / 2 - minY - (maxY - minY) / 2;
+
+	for (auto& triangle : cc) {
+		// 设置xy临时变量，int类型
+		int tempX1 = (int)round(triangle.vertices[0][0] + offsetX);
+		int tempY1 = (int)round(triangle.vertices[0][1] + offsetY);
+		int tempX2 = (int)round(triangle.vertices[1][0] + offsetX);
+		int tempY2 = (int)round(triangle.vertices[1][1] + offsetY);
+		line(tempX1, tempY1, tempX2, tempY2, image, { 0, 0, 0, 255 });
 	}
 
 	ShowWindow(hwnd, nCmdShow);
