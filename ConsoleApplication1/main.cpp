@@ -229,7 +229,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	std::vector<Triangle> cc = read3DFile("C:\\Users\\PTA00\\Desktop\\teapot_surface0.norm.txt");
 	std::cout << "三角形数量:" << cc.size() << std::endl;
 
-	int n = 20;
+	int n = 60;
 	// 将模型向量放大n倍
 	for (auto& triangle : cc) {
 		for (int i = 0; i < 3; i++) {
@@ -255,7 +255,24 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	// 偏移=图片中心-最小值-（最大值-最小值）/2
 	float offsetX = image.width / 2 - minX - (maxX - minX) / 2;
 	float offsetY = image.height / 2 - minY - (maxY - minY) / 2;
-
+	// 所有向量减去最小值(证明移动到第一象限是可靠的)
+	//for (auto& triangle : cc) {
+	//	for (int i = 0; i < 3; i++) {
+	//		triangle.vertices[i][0] -= minX;
+	//		triangle.vertices[i][1] -= minY;
+	//		triangle.vertices[i][2] -= minZ;
+	//		// 如果有小于等于0的，报错
+	//		if (triangle.vertices[i][0] < 0) {
+	//			std::cout << "存在负向量" << triangle.vertices[i][0] << std::endl;
+	//		}
+	//		else if (triangle.vertices[i][1] < 0) {
+	//			std::cout << "存在负向量" << triangle.vertices[i][1] << std::endl;
+	//		}
+	//		else if (triangle.vertices[i][2] < 0) {
+	//			std::cout << "存在负向量" << triangle.vertices[i][2] << std::endl;
+	//		}
+	//	}
+	//}
 	for (auto& triangle : cc) {
 		// 设置xy临时变量，int类型
 		int tempX1 = (int)round(triangle.vertices[0][0] + offsetX);
