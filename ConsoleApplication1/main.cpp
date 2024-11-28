@@ -113,6 +113,73 @@ void DrawImage(HWND hwnd, Image image) {
 	EndPaint(hwnd, &ps);
 }
 
+// 读取二进制 STL 文件的函数
+std::vector<Triangle> readBinarySTL(const std::string& filename) {
+	std::ifstream file(filename, std::ios::binary);
+	if (!file) {
+		throw std::runtime_error("无法打开文件: " + filename);
+	}
+
+	// 跳过 80 字节文件头
+	char header[80] = { 0 };
+	file.read(header, 80);
+
+	// 读取三角形数量
+	uint32_t triangleCount = 0;
+	file.read(reinterpret_cast<char*>(&triangleCount), sizeof(uint32_t));
+	std::cout << "文件中记录的三角形数量: " << triangleCount << std::endl;
+
+	std::vector<Triangle> triangles;
+	triangles.reserve(triangleCount); // 预先分配内存
+
+	// 逐个读取三角形数据
+	for (uint32_t i = 0; i < triangleCount; ++i) {
+		Triangle triangle;
+
+		// 每个 STL 三角形的法向量是统一的，将其复制到 normals
+		float normal[3];
+		if (!file.read(reinterpret_cast<char*>(normal), sizeof(normal))) {
+			throw std::runtime_error("读取三角形法向量失败，文件可能已损坏或格式错误。");
+		}
+
+		for (int j = 0; j < 3; ++j) {
+			triangle.normals[j][0] = normal[0];
+			triangle.normals[j][1] = normal[1];
+			triangle.normals[j][2] = normal[2];
+		}
+
+		// 读取三个顶点
+		for (int j = 0; j < 3; ++j) {
+			if (!file.read(reinterpret_cast<char*>(triangle.vertices[j]), sizeof(triangle.vertices[j]))) {
+				throw std::runtime_error("读取三角形顶点失败，文件可能已损坏或格式错误。");
+			}
+		}
+
+		// 跳过属性字节
+		uint16_t attribute = 0;
+		if (!file.read(reinterpret_cast<char*>(&attribute), sizeof(attribute))) {
+			throw std::runtime_error("读取属性字节失败，文件可能已损坏或格式错误。");
+		}
+
+		triangles.push_back(triangle);
+	}
+
+	// 检查是否有多余数据
+	if (file.peek() != EOF) {
+		throw std::runtime_error("读取结束后文件仍有多余数据，文件格式可能不正确。");
+	}
+
+	// 检查实际读取的三角形数量是否与文件头中记录的数量一致
+	if (triangles.size() != triangleCount) {
+		throw std::runtime_error(
+			"实际读取的三角形数量 (" + std::to_string(triangles.size()) +
+			") 与文件头记录的数量 (" + std::to_string(triangleCount) + ") 不一致。"
+		);
+	}
+
+	return triangles;
+}
+
 // 读取 3D 文件的函数
 std::vector<Triangle> read3DFile(const std::string& filename) {
 	std::ifstream file(filename);
@@ -218,8 +285,10 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	if (hwnd == nullptr) {
 		return 0;
 	}
-	std::vector<Triangle> cc = read3DFile("C:\\Users\\PTA00\\Desktop\\teapot_surface0.norm.txt");
-	std::cout << "三角形数量:" << cc.size() << std::endl;
+	//std::vector<Triangle> cc = read3DFile("C:\\Users\\PTA00\\Desktop\\teapot_surface0.norm.txt");
+	std::vector<Triangle> cc = readBinarySTL("C:\\Users\\PTA00\\Desktop\\75-55-2-8.STL");
+
+
 
 	int n = 20;
 	float minX = 0, minY = 0, minZ = 0;
