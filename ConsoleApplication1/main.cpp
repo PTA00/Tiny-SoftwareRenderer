@@ -298,7 +298,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 
 
 
-	int n = 60;
+	int n = 4;
 	// 将模型向量放大n倍
 	for (auto& triangle : cc) {
 		for (int i = 0; i < 3; i++) {
