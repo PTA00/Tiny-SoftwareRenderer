@@ -1,15 +1,17 @@
 ﻿#include <windows.h>
+#include <limits>
 #include <iostream>
 #include <sstream>
 #include <iomanip>
 #include <vector>
 #include <fstream>
 #include <cmath>
+#include <array>
 
 // 图像宽度和高度
 const int WIDTH = 500;
 const int HEIGHT = 500;
-uint32_t 超边界计数 = 0;
+int 超边界计数 = 0;
 
 struct Color {
 	uint8_t blue;  // 蓝色分量
@@ -21,8 +23,8 @@ struct Color {
 // 图像数据缓冲区（每像素用 4 字节表示：BGRA）
 struct Image {
 	Color* image;
-	uint32_t width;
-	uint32_t height;
+	int width;
+	int height;
 
 	// 初始化图像数据
 	Image(uint32_t width, uint32_t height) {
@@ -43,14 +45,23 @@ struct Image {
 // 全局窗口图像数据
 Image image(WIDTH, HEIGHT);
 
+struct vec2i {
+	int x, y;
+	/*vec2i() : x(0), y(0) {}
+	vec2i(int _x, int _y) : x(_x), y(_y) {}*/
+};
+//struct Triangle2i {
+//	vec2i vertices[3]; // 顶点坐标 (x, y, z)
+//};
+struct vec3 {
+	double x, y, z;
+};
 // 三角形数据结构
 struct Triangle {
-	float vertices[3][3]; // 顶点坐标 (x, y, z)
-	float normals[3][3];  // 法向量 (nx, ny, nz)
+	vec3 vertices[3]; // 顶点坐标 (x, y, z)
+	vec3 normals[3];  // 法向量 (nx, ny, nz)
 };
-struct Triangle_int {
-	int vertices[3][3]; // 顶点坐标 (x, y, z)
-};
+
 
 
 
@@ -147,16 +158,20 @@ std::vector<Triangle> readBinarySTL(const std::string& filename) {
 		}
 
 		for (int j = 0; j < 3; ++j) {
-			triangle.normals[j][0] = normal[0];
-			triangle.normals[j][1] = normal[1];
-			triangle.normals[j][2] = normal[2];
+			triangle.normals[j].x = normal[0];
+			triangle.normals[j].y = normal[1];
+			triangle.normals[j].z = normal[2];
 		}
 
 		// 读取三个顶点
+		float vertex[3];
 		for (int j = 0; j < 3; ++j) {
-			if (!file.read(reinterpret_cast<char*>(triangle.vertices[j]), sizeof(triangle.vertices[j]))) {
+			if (!file.read(reinterpret_cast<char*>(vertex), sizeof(vertex))) {
 				throw std::runtime_error("读取三角形顶点失败，文件可能已损坏或格式错误。");
 			}
+			triangle.vertices[j].x = vertex[0];
+			triangle.vertices[j].y = vertex[1];
+			triangle.vertices[j].z = vertex[2];
 		}
 
 		// 跳过属性字节
@@ -208,7 +223,7 @@ std::vector<Triangle> read3DFile(const std::string& filename) {
 		Triangle triangle;
 		for (int i = 0; i < 3; ++i) {
 			std::istringstream vertexStream(line);
-			if (!(vertexStream >> triangle.vertices[i][0] >> triangle.vertices[i][1] >> triangle.vertices[i][2])) {
+			if (!(vertexStream >> triangle.vertices[i].x >> triangle.vertices[i].y >> triangle.vertices[i].z)) {
 				throw std::runtime_error("文件格式错误: 顶点数据不完整");
 			}
 			std::getline(file, line);
@@ -216,7 +231,7 @@ std::vector<Triangle> read3DFile(const std::string& filename) {
 				throw std::runtime_error("文件格式错误: 缺少法向量数据");
 			}
 			std::istringstream normalStream(line);
-			if (!(normalStream >> triangle.normals[i][0] >> triangle.normals[i][1] >> triangle.normals[i][2])) {
+			if (!(normalStream >> triangle.normals[i].x >> triangle.normals[i].y >> triangle.normals[i].z)) {
 				throw std::runtime_error("文件格式错误: 法向量数据不完整");
 			}
 			std::getline(file, line); // 读取下一行，可能是顶点或空行
@@ -231,6 +246,33 @@ std::vector<Triangle> read3DFile(const std::string& filename) {
 	}
 
 	return triangles;
+}
+
+// 获取包围盒函数(顺序: min, max)
+static std::array<vec3, 2> getBBox2(const std::vector<Triangle> list) {
+	// 初始化包围盒的最小值和最大值
+	vec3 bboxMin = { (std::numeric_limits<int>::max)(), (std::numeric_limits<int>::max)(), (std::numeric_limits<int>::max)() };
+	vec3 bboxMax = { (std::numeric_limits<int>::min)(), (std::numeric_limits<int>::min)(), (std::numeric_limits<int>::min)() };
+
+	for (auto& t : list) {
+		for (int i = 0; i < 3; i++) {
+			bboxMin.x = (std::min)((float)bboxMin.x, (float)t.vertices[i].x);
+			bboxMin.y = (std::min)((float)bboxMin.y, (float)t.vertices[i].y);
+			bboxMin.z = (std::min)((float)bboxMin.z, (float)t.vertices[i].z);
+
+			bboxMax.x = (std::max)((float)bboxMax.x, (float)t.vertices[i].x);
+			bboxMax.y = (std::max)((float)bboxMax.y, (float)t.vertices[i].y);
+			bboxMax.z = (std::max)((float)bboxMax.z, (float)t.vertices[i].z);
+		}
+	}
+
+	return { bboxMin, bboxMax };
+}
+
+// 绘制三角形
+void drawTriangle(Image image, const Triangle triangle, Color color) {
+	// 四舍五入转换
+	line(round(triangle.vertices[0].x), round(triangle.vertices[0].y), round(triangle.vertices[1].x), round(triangle.vertices[1].y), image, color);
 }
 
 // 窗口过程函数
@@ -296,60 +338,13 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 	//std::vector<Triangle> cc = read3DFile("C:\\Users\\PTA00\\Desktop\\teapot_surface0.norm.txt");
 	std::vector<Triangle> cc = readBinarySTL("C:\\Users\\PTA00\\Desktop\\75-55-2-8.STL");
 
+	std::array<vec3, 2> ret = getBBox2(cc);
+	std::cout << "min: " << ret[0].x << " " << ret[0].y << " " << ret[0].z << std::endl;
+	std::cout << "max: " << ret[1].x << " " << ret[1].y << " " << ret[1].z << std::endl;
+	for (auto& t : cc) {
+		drawTriangle(image, t, { 0, 0, 0, 255 });
+	}
 
-
-	int n = 4;
-	// 将模型向量放大n倍
-	for (auto& triangle : cc) {
-		for (int i = 0; i < 3; i++) {
-			triangle.vertices[i][0] *= n;
-			triangle.vertices[i][1] *= n;
-			triangle.vertices[i][2] *= n;
-		}
-	}
-	// 遍历获取xyz分别的最大值和最小值
-	float maxX = INT_MIN, minX = INT_MAX;
-	float maxY = INT_MIN, minY = INT_MAX;
-	float maxZ = INT_MIN, minZ = INT_MAX;
-	for (auto& triangle : cc) {
-		for (int i = 0; i < 3; i++) {
-			maxX = (std::max)(maxX, triangle.vertices[i][0]);
-			minX = (std::min)(minX, triangle.vertices[i][0]);
-			maxY = (std::max)(maxY, triangle.vertices[i][1]);
-			minY = (std::min)(minY, triangle.vertices[i][1]);
-			maxZ = (std::max)(maxZ, triangle.vertices[i][2]);
-			minZ = (std::min)(minZ, triangle.vertices[i][2]);
-		}
-	}
-	// 偏移=图片中心-最小值-（最大值-最小值）/2
-	float offsetX = image.width / 2 - minX - (maxX - minX) / 2;
-	float offsetY = image.height / 2 - minY - (maxY - minY) / 2;
-	// 所有向量减去最小值(证明移动到第一象限是可靠的)
-	//for (auto& triangle : cc) {
-	//	for (int i = 0; i < 3; i++) {
-	//		triangle.vertices[i][0] -= minX;
-	//		triangle.vertices[i][1] -= minY;
-	//		triangle.vertices[i][2] -= minZ;
-	//		// 如果有小于等于0的，报错
-	//		if (triangle.vertices[i][0] < 0) {
-	//			std::cout << "存在负向量" << triangle.vertices[i][0] << std::endl;
-	//		}
-	//		else if (triangle.vertices[i][1] < 0) {
-	//			std::cout << "存在负向量" << triangle.vertices[i][1] << std::endl;
-	//		}
-	//		else if (triangle.vertices[i][2] < 0) {
-	//			std::cout << "存在负向量" << triangle.vertices[i][2] << std::endl;
-	//		}
-	//	}
-	//}
-	for (auto& triangle : cc) {
-		// 设置xy临时变量，int类型
-		int tempX1 = (int)round(triangle.vertices[0][0] + offsetX);
-		int tempY1 = (int)round(triangle.vertices[0][1] + offsetY);
-		int tempX2 = (int)round(triangle.vertices[1][0] + offsetX);
-		int tempY2 = (int)round(triangle.vertices[1][1] + offsetY);
-		line(tempX1, tempY1, tempX2, tempY2, image, { 0, 0, 0, 255 });
-	}
 
 	ShowWindow(hwnd, nCmdShow);
 
